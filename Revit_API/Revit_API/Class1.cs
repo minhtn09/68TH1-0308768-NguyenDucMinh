@@ -1,38 +1,71 @@
-﻿using System.Windows.Forms;
+﻿
 using Autodesk.Revit.DB;
+using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
+using System.Collections.ObjectModel;
+using System.Windows.Forms;
 namespace Revit_API
 {
     [Autodesk.Revit.Attributes.Transaction(Autodesk.Revit.Attributes.TransactionMode.Manual)]
     public class Class1 : IExternalCommand
     {
-        public Result Execute(ExternalCommandData commandData, ref string message, ElementSet elements)
+        public Result Execute(ExternalCommandData commandData,
+    ref string message, ElementSet elements)
         {
-            UIDocument uidoc = commandData.Application.ActiveUIDocument;
-            ICollection<ElementId> selectedIds = uidoc.Selection.GetElementIds();
-            Autodesk.Revit.UI.TaskDialog.Show("Revit", "Số lượng đối tượng được chọn:" + selectedIds.Count.ToString());
-            ICollection<ElementId> selectedWallIds = new List<ElementId>();
+            UIDocument uiDocument = commandData.Application.ActiveUIDocument;
+            Document document = uiDocument.Document;
+            ICollection<ElementId> selectedIds = uiDocument.Selection.GetElementIds();
+
+            if (selectedIds.Count == 0)
+            {
+                Autodesk.Revit.UI.TaskDialog.Show("Revit", "Hãy chọn các đối tượng trước khi chạy lệnh.");
+                return Result.Cancelled;
+            }
+
+            List<ElementId> filteredIds = new List<ElementId>();
+            ElementId structuralColumnCategoryId =
+                new ElementId(BuiltInCategory.OST_StructuralColumns);
+
+            int beamCount = 0;
+            int columnCount = 0;
+            int floorCount = 0;
+
             foreach (ElementId id in selectedIds)
             {
-                Element elements1 = uidoc.Document.GetElement(id);
-                if (elements is Wall)
-                {
-                    selectedWallIds.Add(id);
+                Element element = document.GetElement(id);
 
-                }
-                // Set the created element set as current select element set.
-                uidoc.Selection.SetElementIds(selectedWallIds);
-                if (0 != selectedWallIds.Count)
+                if (element is Floor)
                 {
-                    Autodesk.Revit.UI.TaskDialog.Show("Revit", selectedWallIds.Count.ToString() + " Đối tượng Tường đã được chọn!");
+                    filteredIds.Add(id);
+                    floorCount++;
                 }
-                else
+                else if (element is FamilyInstance familyInstance)
                 {
-                    Autodesk.Revit.UI.TaskDialog.Show("Revit", "Không có đối tượng tường nào được chọn!");
+                    if (familyInstance.StructuralType == StructuralType.Beam)
+                    {
+                        filteredIds.Add(id);
+                        beamCount++;
+                    }
+                    else if (structuralColumnCategoryId.Equals(familyInstance.Category?.Id))
+                    {
+                        filteredIds.Add(id);
+                        columnCount++;
+                    }
                 }
-
             }
+
+            uiDocument.Selection.SetElementIds(filteredIds);
+
+            Autodesk.Revit.UI.TaskDialog.Show("Revit",
+                $"Số đối tượng ban đầu: {selectedIds.Count}\n" +
+                $"Dầm: {beamCount}\n" +
+                $"Cột kết cấu: {columnCount}\n" +
+                $"Sàn: {floorCount}\n" +
+                $"Tổng số đối tượng giữ lại: {filteredIds.Count}");
+
             return Result.Succeeded;
         }
+
+
     }
 }
