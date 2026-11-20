@@ -3,6 +3,7 @@ using Autodesk.Revit.DB;
 using Autodesk.Revit.DB.Structure;
 using Autodesk.Revit.UI;
 using System.Collections.ObjectModel;
+using System.Text;
 using System.Windows.Forms;
 namespace Revit_API
 {
@@ -10,59 +11,20 @@ namespace Revit_API
     public class Class1 : IExternalCommand
     {
         public Result Execute(ExternalCommandData commandData,
-    ref string message, ElementSet elements)
+        ref string message, ElementSet elements)
         {
-            UIDocument uiDocument = commandData.Application.ActiveUIDocument;
-            Document document = uiDocument.Document;
-            ICollection<ElementId> selectedIds = uiDocument.Selection.GetElementIds();
+            Document doc = commandData.Application.ActiveUIDocument.Document;
+            FilteredElementCollector collector = new FilteredElementCollector(doc);
 
-            if (selectedIds.Count == 0)
+            ElementCategoryFilter filter = new ElementCategoryFilter(BuiltInCategory.OST_StructuralFraming);
+            IList<Element> matList = collector.WherePasses(filter).WhereElementIsElementType().ToElements();
+
+            StringBuilder result = new StringBuilder();
+            foreach (Element ele in matList)
             {
-                Autodesk.Revit.UI.TaskDialog.Show("Revit", "Hãy chọn các đối tượng trước khi chạy lệnh.");
-                return Result.Cancelled;
+                result.AppendLine(ele.Category.Name + "\t" + ele.Name + "\t" + ele.Id);
             }
-
-            List<ElementId> filteredIds = new List<ElementId>();
-            ElementId structuralColumnCategoryId =
-                new ElementId(BuiltInCategory.OST_StructuralColumns);
-
-            int beamCount = 0;
-            int columnCount = 0;
-            int floorCount = 0;
-
-            foreach (ElementId id in selectedIds)
-            {
-                Element element = document.GetElement(id);
-
-                if (element is Floor)
-                {
-                    filteredIds.Add(id);
-                    floorCount++;
-                }
-                else if (element is FamilyInstance familyInstance)
-                {
-                    if (familyInstance.StructuralType == StructuralType.Beam)
-                    {
-                        filteredIds.Add(id);
-                        beamCount++;
-                    }
-                    else if (structuralColumnCategoryId.Equals(familyInstance.Category?.Id))
-                    {
-                        filteredIds.Add(id);
-                        columnCount++;
-                    }
-                }
-            }
-
-            uiDocument.Selection.SetElementIds(filteredIds);
-
-            Autodesk.Revit.UI.TaskDialog.Show("Revit",
-                $"Số đối tượng ban đầu: {selectedIds.Count}\n" +
-                $"Dầm: {beamCount}\n" +
-                $"Cột kết cấu: {columnCount}\n" +
-                $"Sàn: {floorCount}\n" +
-                $"Tổng số đối tượng giữ lại: {filteredIds.Count}");
-
+            MessageBox.Show("Tat ca cac materials trong project la:\n" + result.ToString());
             return Result.Succeeded;
         }
 
